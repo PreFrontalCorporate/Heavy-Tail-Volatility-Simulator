@@ -1,45 +1,50 @@
 from flask import Flask, request, jsonify, send_file
-from optimizer import run_portfolio_optimization
-import io
+import numpy as np
+import cvxpy as cp
 
 app = Flask(__name__)
 
-@app.route("/")
-def index():
-    return "Heavy-Tail Volatility Simulator API (CBB/Seas Product Line)"
+def perform_optimization(mu_list, Sigma_list, l1_lambda):
+    # Convert lists to NumPy arrays
+    mu = np.array(mu_list)
+    Sigma = np.array(Sigma_list)
+
+    n = len(mu)
+    w = cp.Variable(n)
+
+    # Objective: minimize variance minus return plus L1 sparsity
+    obj = cp.quad_form(w, Sigma) - mu @ w + l1_lambda * cp.norm1(w)
+
+    # Constraints: sum to 1, no short selling
+    constraints = [
+        cp.sum(w) == 1,
+        w >= 0
+    ]
+
+    prob = cp.Problem(cp.Minimize(obj), constraints)
+    prob.solve(solver=cp.SCS)
+
+    # Convert to native Python types
+    weights = w.value.tolist()
+    weights = [float(x) for x in weights]
+    num_active_weights = sum([abs(wi) > 1e-4 for wi in weights])
+
+    return {
+        "weights": weights,
+        "num_active_weights": num_active_weights,
+        "objective_value": float(prob.value)
+    }
 
 @app.route("/optimize", methods=["POST"])
 def optimize():
-    """
-    Expects JSON with:
-    {
-        "Sigma": [[...], [...], ...],
-        "mu": [...],
-        "rho": float,
-        "lambda_sparse": float
-    }
-    """
     data = request.get_json()
+    mu = data["mu"]
+    Sigma = data["Sigma"]
+    l1_lambda = data["l1_lambda"]
 
-    Sigma = data.get("Sigma")
-    mu = data.get("mu")
-    rho = data.get("rho", 0.1)
-    lambda_sparse = data.get("lambda_sparse", 0.01)
+    result = perform_optimization(mu, Sigma, l1_lambda)
 
-    result, plot_img = run_portfolio_optimization(Sigma, mu, rho, lambda_sparse)
-
-    # Convert plot to bytes
-    buf = io.BytesIO()
-    plot_img.savefig(buf, format="png")
-    buf.seek(0)
-
-    response = {
-        "objective_value": float(result["objective_value"]),
-        "num_active_weights": int(result["num_active_weights"]),
-        "weights": [float(w) for w in result["weights"]]
-    }
-
-    return jsonify(response)
+    return jsonify(result)
 
 @app.route("/download_plot", methods=["GET"])
 def download_plot():
@@ -47,4 +52,3 @@ def download_plot():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
-
