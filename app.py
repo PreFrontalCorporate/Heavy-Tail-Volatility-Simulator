@@ -46,4 +46,5 @@ def download_plot():
     return send_file("static/example_plot.png", mimetype="image/png")
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=5000, debug=True)
+
