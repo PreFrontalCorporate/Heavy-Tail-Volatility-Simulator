@@ -24,7 +24,7 @@ def test_optimize_endpoint(client):
     assert "weights" in result
     assert "num_active_weights" in result
     assert "objective_value" in result
-    assert abs(sum(result["weights"]) - 1.0) < 1e-3  # weights sum close to 1
+    assert abs(sum(result["weights"]) - 1.0) < 1e-3
 
 def test_download_plot(client):
     response = client.get("/download_plot")
