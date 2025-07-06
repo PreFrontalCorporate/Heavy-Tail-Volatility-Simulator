@@ -34,9 +34,9 @@ def optimize():
     buf.seek(0)
 
     response = {
-        "objective_value": result["objective_value"],
-        "num_active_weights": result["num_active_weights"],
-        "weights": result["weights"]
+        "objective_value": float(result["objective_value"]),
+        "num_active_weights": int(result["num_active_weights"]),
+        "weights": [float(w) for w in result["weights"]]
     }
 
     return jsonify(response)
